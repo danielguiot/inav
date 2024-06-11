@@ -397,6 +397,17 @@ bool checkGPSFixFailsafe(void)
 #endif
 
 
+//Function added by tehiru to activate ClimbandYaw
+
+static void failsafeActivateClimbAndYaw(void) {
+    failsafeState.active = true;
+    failsafeState.controlling = true;
+    failsafeState.phase = FAILSAFE_CLIMB_AND_YAW;
+    failsafeState.landingShouldBeFinishedAt = millis() + 5000; // 5 seconds duration
+    ENABLE_FLIGHT_MODE(FAILSAFE_MODE);
+    failsafeState.events++;
+}
+
 void failsafeUpdateState(void)
 {
     if (!failsafeIsMonitoring() || failsafeIsSuspended()) {
@@ -419,6 +430,21 @@ void failsafeUpdateState(void)
         reprocessState = false;
 
         switch (failsafeState.phase) {
+
+            // Update failsafe state- addition of the climb and yaw state - added by us
+            case FAILSAFE_CLIMB_AND_YAW:
+                if (millis() < failsafeState.landingShouldBeFinishedAt) {
+                    rcCommand[THROTTLE] = 1300; // Adjust throttle to climb
+                    rcCommand[YAW] = 1500;      // Adjust yaw to perform maneuver
+                } else {
+                    disarm(DISARM_FAILSAFE);
+                    failsafeState.phase = FAILSAFE_RX_LOSS_MONITORING;
+                    failsafeState.controlling = false;  // Release control to pilot
+                }
+                break;
+
+
+
             case FAILSAFE_IDLE:
                 if (armed) {
                     // Track throttle command below minimum time
@@ -471,9 +497,15 @@ void failsafeUpdateState(void)
                             break;
 
                         case FAILSAFE_PROCEDURE_DROP_IT:
+                            // Previous implementation of the drop failsafe:
                             // Drop the craft
-                            failsafeActivate(FAILSAFE_LANDED);      // skip auto-landing procedure
-                            failsafeState.receivingRxDataPeriodPreset = PERIOD_OF_3_SECONDS; // require 3 seconds of valid rxData
+                            // failsafeActivate(FAILSAFE_LANDED);      // skip auto-landing procedure
+                            // failsafeState.receivingRxDataPeriodPreset = PERIOD_OF_3_SECONDS; // require 3 seconds of valid rxData
+                            //end previous implementation of drop failsafe
+
+                            //New Tehiru implementation of climb and yaw:
+                            failsafeActivateClimbAndYaw();  // Activate climb and yaw maneuver
+                            // End new Tehiru implementation of climb and yaw:
                             break;
 
                         case FAILSAFE_PROCEDURE_RTH:
